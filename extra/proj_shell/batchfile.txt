@@ -1,0 +1,5 @@
+ls
+/bin/ls -al
+
+ls ; pwd ; cat file
+

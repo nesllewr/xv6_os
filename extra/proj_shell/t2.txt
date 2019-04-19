@@ -1,0 +1,7 @@
+; ;
+ls
+pwdttt ; ls -a; pwd ;
+
+cat file ; pwd ;
+quit
+cat Makefile
