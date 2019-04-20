@@ -63,7 +63,7 @@ struct proc {
   int priority;  
   int level;
   int passedticks;
-  int totalticks;
+  //int numlevel;  
 };
 
 //static void wakekup1(void *chan);
