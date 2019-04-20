@@ -127,7 +127,11 @@ sys_getlev(void)
 
 int
 sys_monopolize(void){
-    return monopolize();
+    int password;
+    if(argint(0, &password)<0)
+        return -1;
+
+    return monopolize(password);
 }
 
 void

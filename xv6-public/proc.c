@@ -6,7 +6,10 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+
 #define NULL 0
+#define quantum1 4
+#define quantum2 8
 
 struct {
   struct spinlock lock;
@@ -121,6 +124,9 @@ found:
   
   #ifdef MLFQ_SCHED
   p->priority = 0;
+  p->level =0;
+  p->passedticks =0;
+  p->totalticks =0;
   #endif
 
   p->createdtime = ticks;
@@ -454,16 +460,7 @@ scheduler(void)
         if(p->state == SLEEPING) p->state = RUNNABLE;
         cprintf("killed process %d\n",p->pid);
       }
-    #elif MLFQ_SCHED
 
-
-
-
-    #endif
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -475,6 +472,89 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+    #elif MLFQ_SCHED
+
+    p = ptable.proc;
+
+    if(p->level==1 && p->totalticks%100==0){
+      for(;p<&ptable.proc[NPROC];p++){
+        p->level--;
+        p->totalticks = 0;
+        p->passedticks = 0;
+      }
+    }
+
+    if(p->level==0){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE)
+          continue;
+        if(p->totalticks < quantum1){
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+          p->passedticks++;
+          p->totalticks++;
+
+          swtch(&(c->scheduler), p->context);
+          switchkvm();
+
+          c->proc = 0;
+        }
+        else{
+          p->level=1;
+          p->totalticks =0;
+          p->passedticks=0;
+        }        
+      }
+    }
+
+
+    if(p->level==1){
+      struct proc *high =NULL;
+      struct proc *cur =NULL;
+
+      if(p->state != RUNNABLE)
+        continue;
+      high = p;
+      for(cur = ptable.proc; cur < &ptable.proc[NPROC];cur++){
+        if(cur->state==RUNNABLE && high->priority < cur -> priority)
+          high = cur;
+      }
+      if(high != NULL) p = high;
+
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      p->passedticks++;
+      p->totalticks++;
+
+      if(p->passedticks>quantum2){
+        p->priority--;
+      }
+      p->passedticks =0;
+      if(p->totalticks>100){
+        for(;p<&ptable.proc[NPROC];p++){
+        p->level--;
+        p->totalticks = 0;
+        p->passedticks = 0;
+       }
+      }
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+
+
+    #endif
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      
+     
 
   release(&ptable.lock);
 
@@ -744,12 +824,17 @@ setpriority(int pid, int priority)
 int
 getlev(void)
 {
-  //struct proc *p;
-  acquire(&ptable.lock);
-  return proc->level;
+  //struct proc *p = myproc();
+  return myproc()->level;
 }
 int
-monopolize(int)
+monopolize(int password)
 {
+  struct proc *p = myproc();
+  if(password==2017029552){
+
+  }
+  else{p->killed =1;}
+
   return 0;
 }

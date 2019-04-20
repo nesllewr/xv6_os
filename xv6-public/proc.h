@@ -49,21 +49,21 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  //scheduling
+  //alarm_syscall
   void (*alarmhandler)(void);
   int alarmticks;
   int elapsedticks;            
-  int priority;
-  //time set
+  //for FCFS_SCHED
   int createdtime;
   int runningtime;
   int finishtime;
   int sleepingtime;
   int readytime;
-  #ifdef MLFQ_SCHED
-  int priority;
+  //for MLFQ_SCHED
+  int priority;  
   int level;
-  #endif
+  int passedticks;
+  int totalticks;
 };
 
 //static void wakekup1(void *chan);
