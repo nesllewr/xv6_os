@@ -15,9 +15,12 @@ struct {
   struct spinlock lock;
   struct proc proc[NPROC];
   int numpro[2];
+  
 } ptable;
 
 static struct proc *initproc;
+
+struct proc *min = NULL;
 
 int nextpid = 1;
 extern void forkret(void);
@@ -95,6 +98,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  
 
   release(&ptable.lock);
 
@@ -129,12 +133,14 @@ found:
   p->level =0;
   p->passedticks =0;
   ptable.numpro[p->level]++;
+  p->mono =0;
   
   p->createdtime = ticks;
   p->runningtime = 0;
   p->finishtime = 0;
   p->sleepingtime = 0;
   p->readytime = 0;
+
 
   return p;
 }
@@ -155,12 +161,7 @@ userinit(void)
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
   p->createdtime = ticks;
-  /*
-
-
-
-
-  */
+  
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -180,7 +181,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
+  
   release(&ptable.lock);
 }
 
@@ -329,14 +330,6 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
        //p->createdtime = 0;//////////////////////////////
-        /*
-
-
-
-
-
-
-        */
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -373,29 +366,34 @@ scheduler(void)
     #ifdef FCFS_SCHED 
 
     struct proc *current = NULL;
+    
+    //p=ptable.proc;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-          
-      if(p->state != RUNNABLE) continue;      
+      
+      if(p->state != RUNNABLE) continue;
 
-      if(p->pid > 1){
+      if(p->state == RUNNABLE){
         if(current!= NULL){
           if(p->pid < current->pid){
-            current = p;
+            current = p;       
           }
-        }                        
-        else current = p;
+        }                  
+        else current =p;
       }
-      
-      if(current !=NULL && current->state == RUNNABLE){
-        p = current;
-      }// 
-
-      if(p->runningtime > 100){
+      if(p->runningtime > 100 && p->state!=SLEEPING){
         p->killed =1;
         if(p->state == SLEEPING) p->state = RUNNABLE;
         cprintf("killed process %d\n",p->pid);
-      }
+      }     
+    }
 
+     // if(min->state==RUNNABLE && min->pid < current->pid){
+     //   current = min;
+     //   cprintf("MIN");
+     // }
+    if(current!=NULL){
+      
+      p = current;
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -407,6 +405,7 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+    
     #elif MLFQ_SCHED
 
     int totalticks = ticks;
@@ -416,20 +415,26 @@ scheduler(void)
       if(p->level==0&&p->state==RUNNABLE){
             if(p->passedticks < quantum1){
 
-              p->passedticks =0;
               c->proc = p;
               switchuvm(p);
               p->state = RUNNING;
-
+              acquire(&tickslock);
+              uint start = ticks;
+              release(&tickslock);
               swtch(&(c->scheduler), p->context);
               switchkvm();
-
+              acquire(&tickslock);
+              uint runned = ticks - start;
+              p->passedticks = p->passedticks + runned;
+              release(&tickslock);
               c->proc = 0;
             }
 
             else if(p->passedticks>=quantum1){
               p->level=1;
               p->passedticks=0;
+              ptable.numpro[0]--;
+              cprintf("numpro : %d",ptable.numpro[0]);
             }        
       }
       if(totalticks%100==0){
@@ -437,7 +442,8 @@ scheduler(void)
       }
     }
 
-    if(ptable.numpro[0]<0 && p->level==1){
+    if(p->level==1&&ptable.numpro[0] < 1){
+
           struct proc *high =NULL;
           struct proc *cur =NULL;
 
@@ -452,14 +458,22 @@ scheduler(void)
           c->proc = p;
           switchuvm(p);
           p->state = RUNNING;
-
-          if(p->passedticks > quantum2){
-            p->priority--;
-          }
-          p->passedticks =0;
+          acquire(&tickslock);
+          uint start = ticks;
+          release(&tickslock);
 
           swtch(&(c->scheduler), p->context);
           switchkvm();
+
+          acquire(&tickslock);
+          uint runned = ticks - start;
+          p->passedticks = p->passedticks + runned;
+          release(&tickslock);
+
+          if(p->passedticks > quantum2){
+            p->priority--;
+            p->passedticks =0;
+          }
 
           // Process is done running for now.
           // It should have changed its p->state before coming back.
@@ -470,6 +484,27 @@ scheduler(void)
       p->priority=0;
       p->passedticks=0;
     }
+
+    #else
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+
     #endif
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -587,8 +622,15 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+    if(p->state == SLEEPING && p->chan == chan){
+       p->state = RUNNABLE;
+       //cprintf("pid : %d ", min->pid);
+       // if(min->pid > p->pid){
+       //    min = p;
+       //    cprintf("pid : %d  %d\t", min->pid, p->pid);
+       //  }
+
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -716,10 +758,35 @@ int
 monopolize(int password)
 {
   struct proc *p = myproc();
-  if(password==2017029552){
+  //struct cpu *c = mycpu();
+  //c->proc = 0;
 
+  //acquire(&ptable.lock);
+  if(password==2017029552){
+    if(p->mono==0){
+      p->mono=1;
+      /*c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;*/
+    }
+    else{
+      p->level=0;
+      p->priority=0;
+      /*myproc()->state = RUNNABLE;
+      sched();*/
+    }
   }
-  else{p->killed =1;}
+  else{
+    p->killed =1;
+  }
+  //release(&ptable.lock);
 
   return 0;
 }

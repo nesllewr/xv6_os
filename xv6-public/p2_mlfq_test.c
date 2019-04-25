@@ -3,7 +3,7 @@
 #include "user.h"
 
 #define NUM_CHILD 5
-#define NUM_LOOP1 500
+#define NUM_LOOP1 50
 #define NUM_LOOP2 1000
 #define NUM_LOOP3 200
 #define NUM_LOOP4 500
@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
     int pid = getpid();
     int cnt[2] = {0};
     if (me == NUM_CHILD - 1)
-      monopolize(2019154421);
+      monopolize(2017029552);
     for (int i = 0; i < NUM_LOOP4; i++)
       cnt[getlev()]++;
     printf(1, "process %d: L0=%d, L1=%d\n", pid, cnt[0], cnt[1]);

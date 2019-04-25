@@ -63,6 +63,7 @@ struct proc {
   int priority;  
   int level;
   int passedticks;
+  int mono;
   //int numlevel;  
 };
 
