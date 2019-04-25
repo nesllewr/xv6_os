@@ -34,6 +34,7 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  
 }
 
 // Must be called with interrupts disabled
@@ -132,7 +133,6 @@ found:
   p->priority = 0;
   p->level =0;
   p->passedticks =0;
-  ptable.numpro[p->level]++;
   p->mono =0;
   
   p->createdtime = ticks;
@@ -172,7 +172,9 @@ userinit(void)
   p->tf->eip = 0;  // beginning of initcode.S
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
+  
   p->cwd = namei("/");
+  ptable.numpro[p->level]++;
 
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
@@ -181,7 +183,8 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-  
+
+
   release(&ptable.lock);
 }
 
@@ -243,9 +246,10 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
+  ptable.numpro[np->level]++;
 
   acquire(&ptable.lock);
-
+  
   np->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -356,6 +360,7 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
+  
   for(;;){
   // Enable interrupts on this processor.
     sti();
@@ -365,35 +370,35 @@ scheduler(void)
 
     #ifdef FCFS_SCHED 
 
-    struct proc *current = NULL;
-    
-    //p=ptable.proc;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       
       if(p->state != RUNNABLE) continue;
+cprintf("helllooooo14441\n");
+      if(p->pid > 1){//p next
+        cprintf("helllooooo1111\n");
+        if(min==NULL||min->state!=RUNNABLE){
+            min = p;
+            cprintf("helllooooo0000\n");
+        }
 
-      if(p->state == RUNNABLE){
-        if(current!= NULL){
-          if(p->pid < current->pid){
-            current = p;       
-          }
-        }                  
-        else current =p;
+        if(min->state==RUNNABLE) p = min;
+        
+        cprintf("helllooooo2222\n");
+        if(p->pid < min->pid && min->state==RUNNABLE){
+          p = min;//  cprintf("helllooooo3\n");     
+        }                    
+               
       }
-      if(p->runningtime > 100 && p->state!=SLEEPING){
-        p->killed =1;
-        if(p->state == SLEEPING) p->state = RUNNABLE;
-        cprintf("killed process %d\n",p->pid);
-      }     
+cprintf("helllooooo3\n");
+      if(p->runningtime > 100){
+          p->killed =1;
+          if(p->state == SLEEPING) p->state = RUNNABLE;
+          cprintf("killed process %d\n",p->pid);
+      }            
     }
-
-     // if(min->state==RUNNABLE && min->pid < current->pid){
-     //   current = min;
-     //   cprintf("MIN");
-     // }
-    if(current!=NULL){
-      
-      p = current;
+    
+    //if(p!=NULL){
+    
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -404,88 +409,42 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
+   // }
     
     #elif MLFQ_SCHED
 
-    int totalticks = ticks;
-    p = ptable.proc;
+    
+      for(p=ptable.proc; p< &ptable.proc[NPROC];p++){
+        if(p->state != RUNNABLE)
+            continue;
 
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->level==0&&p->state==RUNNABLE){
-            if(p->passedticks < quantum1){
-
-              c->proc = p;
-              switchuvm(p);
-              p->state = RUNNING;
-              acquire(&tickslock);
-              uint start = ticks;
-              release(&tickslock);
-              swtch(&(c->scheduler), p->context);
-              switchkvm();
-              acquire(&tickslock);
-              uint runned = ticks - start;
-              p->passedticks = p->passedticks + runned;
-              release(&tickslock);
-              c->proc = 0;
-            }
-
-            else if(p->passedticks>=quantum1){
-              p->level=1;
-              p->passedticks=0;
-              ptable.numpro[0]--;
-              cprintf("numpro : %d",ptable.numpro[0]);
-            }        
-      }
-      if(totalticks%100==0){
-        break;
-      }
-    }
-
-    if(p->level==1&&ptable.numpro[0] < 1){
-
-          struct proc *high =NULL;
-          struct proc *cur =NULL;
-
-          high = p;
-          for(cur = ptable.proc; cur < &ptable.proc[NPROC];cur++){
-            if(cur->state==RUNNABLE && high->priority < cur -> priority)
-              high = cur;
-          }
-
-          if(high != NULL) p = high;
-
+        if(p->level==0 && p->passedticks<quantum1){
           c->proc = p;
           switchuvm(p);
           p->state = RUNNING;
-          acquire(&tickslock);
-          uint start = ticks;
-          release(&tickslock);
 
           swtch(&(c->scheduler), p->context);
           switchkvm();
 
-          acquire(&tickslock);
-          uint runned = ticks - start;
-          p->passedticks = p->passedticks + runned;
-          release(&tickslock);
-
-          if(p->passedticks > quantum2){
-            p->priority--;
-            p->passedticks =0;
-          }
-
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
           c->proc = 0;
-    }
-    if(totalticks%100==0){
-      p->level=0;
-      p->priority=0;
-      p->passedticks=0;
-    }
+        }
+        else if(p->level==0&&p->passedticks>=quantum1){
+          p->level =0;
+          ptable.numpro[0]--;
+          p->passedticks =0;
+        }
+        if(ptable.numpro[0]<0) break;
+      }//for
+
+      /*for(p=ptable.proc;p<&ptable.proc[NPROC];p++){
+        if(p->state != RUNNABLE) continue;
+
+      }*/
+   
+    
 
     #else
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -580,7 +539,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+
   if(p == 0)
     panic("sleep");
 
@@ -598,9 +557,11 @@ sleep(void *chan, struct spinlock *lk)
     release(lk);
   }
   // Go to sleep.
+
   p->chan = chan;
   p->state = SLEEPING;
 
+    
   sched();
 
   // Tidy up.
@@ -611,6 +572,7 @@ sleep(void *chan, struct spinlock *lk)
     release(&ptable.lock);
     acquire(lk);
   }
+
 }
 
 //PAGEBREAK!
@@ -623,13 +585,14 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan){
-       p->state = RUNNABLE;
-       //cprintf("pid : %d ", min->pid);
-       // if(min->pid > p->pid){
-       //    min = p;
-       //    cprintf("pid : %d  %d\t", min->pid, p->pid);
-       //  }
-
+       //cprintf("pid : %d %d ", min->pid, p->pid);
+      #ifdef FCFS_SCHED
+      if(p->pid < min->pid){
+        //cprintf("pid : %d %d ", min->pid, p->pid);
+        min = p;   
+      }
+      #endif
+      p->state = RUNNABLE;
     }
 }
 
@@ -655,8 +618,11 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING){
+        
         p->state = RUNNABLE;
+
+      }
       release(&ptable.lock);
       return 0;
     }
