@@ -6,27 +6,20 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-
 #define NULL 0
-#define quantum1 4
-#define quantum2 8
 
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
-  int numpro[2];
-  
 } ptable;
 
 static struct proc *initproc;
 
-struct proc *min = NULL;
+struct proc *min;
 
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
-
-extern uint ticks;
 
 static void wakeup1(void *chan);
 
@@ -34,7 +27,6 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
-  
 }
 
 // Must be called with interrupts disabled
@@ -99,7 +91,6 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  
 
   release(&ptable.lock);
 
@@ -130,17 +121,15 @@ found:
 
   //variables needed by sched policy initialize
   
+  #ifdef MLFQ_SCHED
   p->priority = 0;
-  p->level =0;
-  p->passedticks =0;
-  p->mono =0;
-  
+  #endif
+
   p->createdtime = ticks;
   p->runningtime = 0;
   p->finishtime = 0;
   p->sleepingtime = 0;
   p->readytime = 0;
-
 
   return p;
 }
@@ -161,7 +150,12 @@ userinit(void)
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
   p->createdtime = ticks;
-  
+  /*
+
+
+
+
+  */
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -172,9 +166,7 @@ userinit(void)
   p->tf->eip = 0;  // beginning of initcode.S
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
-  
   p->cwd = namei("/");
-  ptable.numpro[p->level]++;
 
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
@@ -183,7 +175,6 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
 
   release(&ptable.lock);
 }
@@ -246,10 +237,9 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-  ptable.numpro[np->level]++;
 
   acquire(&ptable.lock);
-  
+
   np->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -334,6 +324,14 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
        //p->createdtime = 0;//////////////////////////////
+        /*
+
+
+
+
+
+
+        */
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -353,6 +351,15 @@ wait(void)
 
 
 
+//PAGEBREAK: 42
+// Per-CPU process scheduler.
+// Each CPU calls scheduler() after setting itself up.
+// Scheduler never returns.  It loops, doing:
+//  - choose a process to run
+//  - swtch to start running that process
+//  - eventually that process transfers control
+//      via swtch back to the scheduler.
+
 void
 scheduler(void)
 {
@@ -360,7 +367,6 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
-  
   for(;;){
   // Enable interrupts on this processor.
     sti();
@@ -369,82 +375,69 @@ scheduler(void)
     acquire(&ptable.lock);
 
     #ifdef FCFS_SCHED 
-
+    //struct proc *current = NULL;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      
+            
       if(p->state != RUNNABLE) continue;
-cprintf("helllooooo14441\n");
-      if(p->pid > 1){//p next
-        cprintf("helllooooo1111\n");
-        if(min==NULL||min->state!=RUNNABLE){
-            min = p;
-            cprintf("helllooooo0000\n");
-        }
 
-        if(min->state==RUNNABLE) p = min;
-        
-        cprintf("helllooooo2222\n");
-        if(p->pid < min->pid && min->state==RUNNABLE){
-          p = min;//  cprintf("helllooooo3\n");     
-        }                    
-               
+      if(min==NULL||min->state!=RUNNABLE){
+        min = p;
       }
-cprintf("helllooooo3\n");
-      if(p->runningtime > 100){
-          p->killed =1;
-          if(p->state == SLEEPING) p->state = RUNNABLE;
-          cprintf("killed process %d\n",p->pid);
-      }            
+
+      if(p->pid > 1){
+        
+        if(p->pid > min->pid && min->state==RUNNABLE){
+          p = min;       
+        }
+                          
+        else min = p;
+      }
+
+      if(p->runningtime > 100 && p->state!=SLEEPING){
+        p->killed =1;
+        if(p->state == SLEEPING) p->state = RUNNABLE;
+        cprintf("killed process %d\n",p->pid);
+      }
+      if(p!=NULL){
+        
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        c->proc = 0;
+              
+      }     
     }
-    
-    //if(p!=NULL){
-    
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-   // }
-    
-    #elif MLFQ_SCHED
+    #endif
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      
+      
+  release(&ptable.lock);
 
-    
-      for(p=ptable.proc; p< &ptable.proc[NPROC];p++){
-        if(p->state != RUNNABLE)
-            continue;
+  }
 
-        if(p->level==0 && p->passedticks<quantum1){
-          c->proc = p;
-          switchuvm(p);
-          p->state = RUNNING;
+}
+/*
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+  
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
 
-          swtch(&(c->scheduler), p->context);
-          switchkvm();
-
-          c->proc = 0;
-        }
-        else if(p->level==0&&p->passedticks>=quantum1){
-          p->level =0;
-          ptable.numpro[0]--;
-          p->passedticks =0;
-        }
-        if(ptable.numpro[0]<0) break;
-      }//for
-
-      /*for(p=ptable.proc;p<&ptable.proc[NPROC];p++){
-        if(p->state != RUNNABLE) continue;
-
-      }*/
-   
-    
-
-    #else
-
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -463,18 +456,10 @@ cprintf("helllooooo3\n");
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-
-    #endif
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-
-  release(&ptable.lock);
+    release(&ptable.lock);
 
   }
-
-}
-
+}*/
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -539,7 +524,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-
+  
   if(p == 0)
     panic("sleep");
 
@@ -557,11 +542,9 @@ sleep(void *chan, struct spinlock *lk)
     release(lk);
   }
   // Go to sleep.
-
   p->chan = chan;
   p->state = SLEEPING;
 
-    
   sched();
 
   // Tidy up.
@@ -572,7 +555,6 @@ sleep(void *chan, struct spinlock *lk)
     release(&ptable.lock);
     acquire(lk);
   }
-
 }
 
 //PAGEBREAK!
@@ -585,14 +567,12 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan){
-       //cprintf("pid : %d %d ", min->pid, p->pid);
-      #ifdef FCFS_SCHED
-      if(p->pid < min->pid){
-        //cprintf("pid : %d %d ", min->pid, p->pid);
-        min = p;   
-      }
-      #endif
       p->state = RUNNABLE;
+      if(min!=NULL && p->pid < min->pid){
+         min =p;
+         //cprintf("hellod");
+      }
+      
     }
 }
 
@@ -618,11 +598,8 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING){
-        
+      if(p->state == SLEEPING)
         p->state = RUNNABLE;
-
-      }
       release(&ptable.lock);
       return 0;
     }
@@ -683,7 +660,6 @@ updatetime(void)
         break;
       case RUNNING:
         p->runningtime++;
-        p->passedticks++;
         break;
       default:
         break;
