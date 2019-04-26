@@ -3,10 +3,10 @@
 #include "user.h"
 
 #define NUM_CHILD 5
-#define NUM_LOOP1 50
-#define NUM_LOOP2 1000
-#define NUM_LOOP3 200
-#define NUM_LOOP4 500
+#define NUM_LOOP1 50000
+#define NUM_LOOP2 100000
+#define NUM_LOOP3 20000
+#define NUM_LOOP4 50000
 
 int me;
 
