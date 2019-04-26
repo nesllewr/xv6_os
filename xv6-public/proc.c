@@ -375,22 +375,18 @@ scheduler(void)
     acquire(&ptable.lock);
 
     #ifdef FCFS_SCHED 
-    //struct proc *current = NULL;
+    
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
             
       if(p->state != RUNNABLE) continue;
 
-      if(min==NULL||min->state!=RUNNABLE){
-        min = p;
-      }
-
       if(p->pid > 1){
-        
+        if(min==NULL||min->state!=RUNNABLE){
+          min = p;
+         }      
         if(p->pid > min->pid && min->state==RUNNABLE){
           p = min;       
-        }
-                          
-        else min = p;
+        }                         
       }
 
       if(p->runningtime > 100 && p->state!=SLEEPING){
@@ -398,7 +394,7 @@ scheduler(void)
         if(p->state == SLEEPING) p->state = RUNNABLE;
         cprintf("killed process %d\n",p->pid);
       }
-      if(p!=NULL){
+      //if(p!=NULL){
         
         c->proc = p;
         switchuvm(p);
@@ -409,7 +405,7 @@ scheduler(void)
 
         c->proc = 0;
               
-      }     
+      //}     
     }
 
 
@@ -544,6 +540,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  //cprintf("sleep : %d\t", p->pid);
 
   sched();
 
@@ -569,8 +566,8 @@ wakeup1(void *chan)
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
       if(min!=NULL && p->pid < min->pid){
-         min =p;
-         //cprintf("hellod");
+         min = p;
+         //cprintf("min %d\t", min->pid);
       }
       
     }
