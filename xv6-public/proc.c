@@ -417,7 +417,7 @@ scheduler(void)
       if(numpro<0) break;
       if(p->state !=RUNNABLE) continue;
       
-      if(p->level==0 && p->passedticks>=quantum1){       
+      if(p->level==0 && p->passedticks==quantum1){       
         p->level = 1;
         p->passedticks =0;
         if(p->pid>1) numpro--;
@@ -432,10 +432,10 @@ scheduler(void)
         switchkvm();
         c->proc = 0;    
       }             
-    }
+    }//level 0 for
     
     struct proc *high =NULL;
-    //struct proc *cur = NULL;
+    struct proc *cur = NULL;
     for(p = ptable.proc; p < &ptable.proc[NPROC];p++){
 
       if(totalticks%100==0){
@@ -450,27 +450,29 @@ scheduler(void)
       
       if(p->state != RUNNABLE) continue;
 
-      //high = p;
+      high = p;
       
-      //for(cur)
-      if(p->pid > 1 && p->level==1){
-        if(high==NULL||high->state!=RUNNABLE){
-          high = p;
-        }
-        if(p->priority == high->priority && high->state==RUNNABLE){
-          if(p->pid < high->pid){
-            high = p;
+      for(cur= ptable.proc; cur < &ptable.proc[NPROC];cur++){
+        if(cur->state!=RUNNABLE) continue;
+        if(cur->pid > 1 && cur->level==1){
+          if(high->state!=RUNNABLE){
+            high = cur;
           }
-        }       
-        if(p->priority < high->priority && high->state==RUNNABLE){
-          p = high;       
-        }                         
-      } //priority comp
-
-      
+          if(cur->priority == high->priority && high->state==RUNNABLE){
+            if(cur->pid < high->pid){
+              high = cur;
+            }
+          }       
+          if(cur->priority > high->priority && high->state==RUNNABLE){
+            high = cur;       
+          }                         
+        } //priority comp
+      }//find highest priority
+     
+      p = high;
 
       if(p!=NULL){
-        if(p->passedticks>=quantum2){
+        if(p->passedticks==quantum2){
           if(p->priority>0)  p-> priority--;         
           p-> passedticks =0;
           continue;
