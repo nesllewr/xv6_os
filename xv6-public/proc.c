@@ -366,6 +366,7 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+
   c->proc = 0;
 
   for(;;){
@@ -417,12 +418,12 @@ scheduler(void)
       if(numpro<0) break;
       if(p->state !=RUNNABLE) continue;
       
-      // if(p->level==0 && p->passedticks==quantum1){       
-      //   p->level = 1;
-      //   p->passedticks =0;
-      //   if(p->pid>1) numpro--;
-      //   continue;          
-      // }
+      if(p->level==0 && p->passedticks==quantum1){       
+        p->level = 1;
+        p->passedticks =0;
+        if(p->pid>1) numpro--;
+        continue;          
+      }
       
         c->proc = p;
         switchuvm(p);
@@ -461,11 +462,11 @@ scheduler(void)
       p = high;
 
       if(p!=NULL){
-        // if(p->passedticks==quantum2){
-        //   if(p->priority>0)  p-> priority--;         
-        //   p-> passedticks =0;
-        //   continue;
-        // }    
+        if(p->passedticks==quantum2){
+          if(p->priority>0)  p-> priority--;         
+          p-> passedticks =0;
+          continue;
+        }    
         if(p->level==1){
           c->proc = p;
           switchuvm(p);
@@ -739,8 +740,10 @@ int
 monopolize(int password)
 {
   struct proc *p;
+  struct cpu *c = mycpu();
+  c->proc = 0;
   if(password==2017029552){
-    
+
     return 0;
   }
   else{
