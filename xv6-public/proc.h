@@ -67,8 +67,11 @@ struct proc {
   //int numlevel;  
 };
 
+
 //static void wakekup1(void *chan);
   void updatetime();
+  int setpriority(int pid, int priority);
+
 // Process memory is laid out contiguously, low addresses first:
 //   text
 //   original data and bss
