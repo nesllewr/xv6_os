@@ -411,19 +411,19 @@ scheduler(void)
    
     #elif MLFQ_SCHED
     
-    int totalticks = ticks;
+    //int totalticks = ticks;
         
     for(p=ptable.proc; p< &ptable.proc[NPROC];p++){
       if(numpro<0) break;
       if(p->state !=RUNNABLE) continue;
       
-      if(p->level==0 && p->passedticks==quantum1){       
-        p->level = 1;
-        p->passedticks =0;
-        if(p->pid>1) numpro--;
-        continue;          
-      }
-      if(p->level==0){
+      // if(p->level==0 && p->passedticks==quantum1){       
+      //   p->level = 1;
+      //   p->passedticks =0;
+      //   if(p->pid>1) numpro--;
+      //   continue;          
+      // }
+      
         c->proc = p;
         switchuvm(p);
         p->state = RUNNING;
@@ -431,23 +431,12 @@ scheduler(void)
         swtch(&(c->scheduler), p->context);
         switchkvm();
         c->proc = 0;    
-     }             
+                 
     }//level 0 for
     
-    struct proc *high =NULL;
+    //struct proc *high =NULL;
     struct proc *cur = NULL;
     for(p = ptable.proc; p < &ptable.proc[NPROC];p++){
-
-      if(totalticks%100==0){
-        for(p = ptable.proc; p < &ptable.proc[NPROC];p++){
-          p->level = 0;
-          p->priority =0;
-          p->passedticks =0;
-          numpro++;
-        }
-        break;
-      }//check total ticks
-      
       if(p->state != RUNNABLE) continue;
 
       high = p;
@@ -455,9 +444,9 @@ scheduler(void)
       for(cur= ptable.proc; cur < &ptable.proc[NPROC];cur++){
         if(cur->state!=RUNNABLE) continue;
         if(cur->pid > 1 && cur->level==1){
-          // if(high->state!=RUNNABLE){
-          //   high = cur;
-          // }
+          if(high->state!=RUNNABLE){
+            high = cur;
+          }
           if(cur->priority == high->priority && high->state==RUNNABLE){
             if(cur->pid < high->pid){
               high = cur;
@@ -472,11 +461,11 @@ scheduler(void)
       p = high;
 
       if(p!=NULL){
-        if(p->passedticks==quantum2){
-          if(p->priority>0)  p-> priority--;         
-          p-> passedticks =0;
-          continue;
-        }    
+        // if(p->passedticks==quantum2){
+        //   if(p->priority>0)  p-> priority--;         
+        //   p-> passedticks =0;
+        //   continue;
+        // }    
         if(p->level==1){
           c->proc = p;
           switchuvm(p);
@@ -613,12 +602,12 @@ wakeup1(void *chan)
          //cprintf("min %d\t", min->pid);
       }
       #elif MLFQ_SCHED
-      if(high!=NULL && p->level==1&&p->priority == high -> priority){
-        if(high->pid > p->pid)
-          high = p;
-      }
-      if(high!=NULL && p->level==1&& p->priority > high ->priority)
-        high =p;
+      // if(high!=NULL && p->level==1&&p->priority == high -> priority){
+      //   if(high->pid > p->pid)
+      //     high = p;
+      // }
+      // if(high!=NULL && p->level==1&& p->priority > high ->priority)
+      //   high =p;
       
       #endif
       
@@ -758,4 +747,18 @@ monopolize(int password)
     p->killed =1;
     return -1;
   }
+}
+
+void
+boost(void)
+{ 
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC];p++){
+    p->level = 0;
+    p->priority =0;
+    p->passedticks =0;
+    numpro++;
+  }
+  release(&ptable.lock);
 }

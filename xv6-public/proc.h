@@ -70,7 +70,7 @@ struct proc {
 
 //static void wakekup1(void *chan);
   void updatetime();
-  int setpriority(int pid, int priority);
+  void boost();
 
 // Process memory is laid out contiguously, low addresses first:
 //   text
