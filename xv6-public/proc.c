@@ -431,7 +431,7 @@ scheduler(void)
         swtch(&(c->scheduler), p->context);
         switchkvm();
         c->proc = 0;    
-      }             
+     }             
     }//level 0 for
     
     struct proc *high =NULL;
@@ -455,9 +455,9 @@ scheduler(void)
       for(cur= ptable.proc; cur < &ptable.proc[NPROC];cur++){
         if(cur->state!=RUNNABLE) continue;
         if(cur->pid > 1 && cur->level==1){
-          if(high->state!=RUNNABLE){
-            high = cur;
-          }
+          // if(high->state!=RUNNABLE){
+          //   high = cur;
+          // }
           if(cur->priority == high->priority && high->state==RUNNABLE){
             if(cur->pid < high->pid){
               high = cur;
@@ -477,7 +477,7 @@ scheduler(void)
           p-> passedticks =0;
           continue;
         }    
-        //if(p->level==1){
+        if(p->level==1){
           c->proc = p;
           switchuvm(p);
           p->state = RUNNING;
@@ -486,9 +486,9 @@ scheduler(void)
           switchkvm();
 
           c->proc = 0;
-       // }         
+       }         
       }  //if pf null
-    }//ptable for priority
+    }//level 1 sched
     
     #endif
 
