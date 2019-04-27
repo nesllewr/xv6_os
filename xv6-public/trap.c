@@ -7,6 +7,8 @@
 #include "x86.h"
 #include "traps.h"
 #include "spinlock.h"
+#define quantum1 4
+#define quantum2 8
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -124,8 +126,18 @@ trap(struct trapframe *tf)
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
   if(myproc() && myproc()->state == RUNNING &&
-    tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+    tf->trapno == T_IRQ0+IRQ_TIMER){
+    #ifdef FCFS_SCHED
+    yield()
+    #elif MLFQ_SCHED
+    if(myproc()->level==0&&myproc()->passedticks==quantum1)
+      yield();
+    else if(myproc()->level==1&&myproc()->passedticks==quantum2)
+      yield();
+    
+    #endif
+  }
+    
 
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)

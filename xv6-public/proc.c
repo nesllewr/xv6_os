@@ -365,7 +365,6 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-
 void
 scheduler(void)
 {
@@ -423,39 +422,43 @@ scheduler(void)
       if(p->state !=RUNNABLE) continue;
 
       if(p->level ==0){
-        if(p->passedticks<quantum1){
+        if(p->passedticks < quantum1){         
           c->proc = p;
           switchuvm(p);
           p->state = RUNNING;
-
+          p->passedticks =0;
           swtch(&(c->scheduler), p->context);
           switchkvm();
-
           c->proc = 0;
         }
-        else{
+
+        if(p->passedticks>=quantum1){       
           p->level = 1;
-          ptable.numpro--;
           p->passedticks =0;
-          if(ptable.numpro <= -1)
-            goto SECOND;
+          if(p->pid>1) ptable.numpro--;
+          if(ptable.numpro < 0){
+            cprintf("sec");
+            break;
+          }
           
         }
       }
     }
-
-SECOND: ;
     
     struct proc *high =NULL;
     for(p = ptable.proc; p < &ptable.proc[NPROC];p++){
-      //if(totalticks%100==0) break;
-
+      
       if(p->state != RUNNABLE) continue;
       
       if(p->pid > 1){
         if(high==NULL||high->state!=RUNNABLE){
           high = p;
-         }      
+         }
+        if(p->priority == high->priority && high->state==RUNNABLE){
+          if(p->pid < high->pid){
+            high = p;
+          }
+        }       
         if(p->priority < high->priority && high->state==RUNNABLE){
           p = high;       
         }                         
@@ -469,35 +472,29 @@ SECOND: ;
           ptable.numpro++;
         }
         break;
-
       }//check total ticks
 
-
-      //if(p!=NULL){
+      if(p!=NULL){
         if(p->passedticks<quantum2){
           c->proc = p;
           switchuvm(p);
           p->state = RUNNING;
-
+          p->passedticks =0;
           swtch(&(c->scheduler), p->context);
           switchkvm();
 
           c->proc = 0;
         }
         if(p->passedticks>=quantum2){
-          p-> priority--;
+          if(p->priority>0){
+            p-> priority--;
+          }
           p-> passedticks =0;
           continue;
         }              
-      //}  //if pf null
-
-
+      }  //if pf null
     }//ptable for priority
     
-    
-
-   
-
     #endif
 
       
@@ -506,7 +503,6 @@ SECOND: ;
   }
 
 }
-
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -621,9 +617,14 @@ wakeup1(void *chan)
          min = p;
          //cprintf("min %d\t", min->pid);
       }
-      // #elif MLFQ_SCHED
-      // if(high!=NULL && p->priority > high -> priority)
-      //   high = p;
+      #elif MLFQ_SCHED
+      if(high!=NULL && p->level==1&&p->priority == high -> priority){
+        if(high->pid > p->pid)
+          high = p;
+      }
+      if(high!=NULL && p->level==1&& p->priority > high ->priority)
+        high =p;
+      
       #endif
       
     }
@@ -728,7 +729,7 @@ setpriority(int pid, int priority)
   struct proc *p;
   acquire(&ptable.lock);
 
-  if(priority<1 || priority > 10){
+  if(priority<0 || priority > 11){
     release(&ptable.lock);
     return -1;
   }
@@ -736,7 +737,6 @@ setpriority(int pid, int priority)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->priority = priority;
-      break;
     }
   }
 
@@ -749,14 +749,16 @@ getlev(void)
 {
   return myproc()->level;
 }
+
+
 int
 monopolize(int password)
 {
   struct proc *p = myproc();
-  //struct cpu *c = mycpu();
-  //c->proc = 0;
+  // struct cpu *c = mycpu();
+  // c->proc = 0;
 
-  //acquire(&ptable.lock);
+  // acquire(&ptable.lock);
   if(password==2017029552){
     if(p->mono==0){
       p->mono=1;
@@ -767,9 +769,7 @@ monopolize(int password)
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;*/
+     c->proc = 0;*/
     }
     else{
       p->level=0;

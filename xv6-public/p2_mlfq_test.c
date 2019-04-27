@@ -7,7 +7,6 @@
 #define NUM_LOOP2 100000
 #define NUM_LOOP3 20000
 #define NUM_LOOP4 50000
-
 int me;
 
 // ret: 0: child, 1: parent
@@ -46,7 +45,6 @@ int main(int argc, char **argv) {
     for (int i = 0; i < NUM_LOOP1; i++) {
       cnt[getlev()]++;
       setpriority(pid, me * 2);
-      //printf(1,"getlev()",getlev());
     }
     printf(1, "process %d: L0=%d, L1=%d\n", pid, cnt[0], cnt[1]);
   }
@@ -99,7 +97,7 @@ int main(int argc, char **argv) {
       cnt[getlev()]++;
     printf(1, "process %d: L0=%d, L1=%d\n", pid, cnt[0], cnt[1]);
     if (me == NUM_CHILD - 1)
-      monopolize(2019154421);
+      monopolize(2017029552);
   }  
 
   exit_child(p);
