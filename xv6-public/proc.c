@@ -759,7 +759,6 @@ monopolize(int password)
   if(password==2017029552){
     if(p->mono==0){
      p->mono =1;
-     
     }
     else if(p->mono==1){
       p->mono=0;

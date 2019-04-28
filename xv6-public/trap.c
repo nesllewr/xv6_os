@@ -136,13 +136,13 @@ trap(struct trapframe *tf)
     #ifdef FCFS_SCHED
     yield();
     #elif MLFQ_SCHED
-    if(myproc()->level==0 && myproc()->passedticks==quantum1){
+    if(myproc()->level==0 && myproc()->passedticks==quantum1&&myproc()->mono==0){
       myproc()->level =1;
       if(myproc()->pid>1) numpro--;
       myproc()->passedticks = 0;
       yield();
     }
-    else if(myproc()->level==1 && myproc()->passedticks==quantum2){
+    else if(myproc()->level==1 && myproc()->passedticks==quantum2&&myproc()->mono==0){
       if(myproc()->priority > 0) myproc()->priority--;
       myproc()->passedticks= 0;
       yield();
@@ -154,4 +154,7 @@ trap(struct trapframe *tf)
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
+  if(myproc() && myproc()->mono ==1){
+
+  }
 }
