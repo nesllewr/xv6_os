@@ -28,9 +28,9 @@ int myfunction(char*);
 int getppid(void);
 void myyield(void);
 int alarm(int ticks, void(*handler)());
-int setpriority(int,int);
+void setpriority(int,int);
 int getlev(void);
-int monopolize(int);
+void monopolize(int);
 void yield(void);
 // ulib.c
 int stat(const char*, struct stat*);

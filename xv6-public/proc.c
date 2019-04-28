@@ -30,6 +30,7 @@ static void wakeup1(void *chan);
 
 extern uint ticks;
 int numpro;
+int count;
 
 void
 pinit(void)
@@ -366,17 +367,23 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
   c->proc = 0;
 
   for(;;){
   // Enable interrupts on this processor.
     sti();
-
+    #ifdef MLFQ_SCHED
+    uint spent;
+    acquire(&tickslock);
+    spent = ticks;
+    release(&tickslock);
+    #endif
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
+   
 
     #ifdef FCFS_SCHED 
+    
+    acquire(&ptable.lock);
     
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
             
@@ -391,12 +398,12 @@ scheduler(void)
         }                         
       }
 
-      if(p->runningtime > 100 && p->state!=SLEEPING){
-        p->killed =1;
-        if(p->state == SLEEPING) p->state = RUNNABLE;
-        cprintf("killed process %d\n",p->pid);
-      }
-       if(p!=NULL){
+      // if(p->runningtime > 100 && p->state!=SLEEPING){
+      //   p->killed =1;
+      //   if(p->state == SLEEPING) p->state = RUNNABLE;
+      //   cprintf("killed process %d\n",p->pid);
+      // }
+      //  if(p!=NULL){
         
         c->proc = p;
         switchuvm(p);
@@ -412,18 +419,22 @@ scheduler(void)
    
     #elif MLFQ_SCHED
     
-    //int totalticks = ticks;
-        
+    if(spent%100==0){
+      boost();
+    }    
+    
+    acquire(&ptable.lock);
     for(p=ptable.proc; p< &ptable.proc[NPROC];p++){
-      if(numpro<0) break;
-      if(p->state !=RUNNABLE) continue;
+      if(numpro<count) break;
       
-      if(p->level==0 && p->passedticks==quantum1){       
-        p->level = 1;
-        p->passedticks =0;
-        if(p->pid>1) numpro--;
-        continue;          
-      }
+      if(p->state !=RUNNABLE||p->level==1) continue;
+      
+      // if(p->level==0 && p->passedticks==quantum1){       
+      //   p->level = 1;
+      //   p->passedticks =0;
+      //   if(p->pid>1) numpro--;
+      //   continue;          
+      // }
       
         c->proc = p;
         switchuvm(p);
@@ -444,10 +455,11 @@ scheduler(void)
       
       for(cur= ptable.proc; cur < &ptable.proc[NPROC];cur++){
         if(cur->state!=RUNNABLE) continue;
-        if(cur->pid > 1 && cur->level==1){
-          if(high->state!=RUNNABLE){
+        if(high==NULL||high->state!=RUNNABLE){
             high = cur;
-          }
+        }
+        if(cur->pid > 1 && cur->level==1){
+          
           if(cur->priority == high->priority && high->state==RUNNABLE){
             if(cur->pid < high->pid){
               high = cur;
@@ -462,11 +474,11 @@ scheduler(void)
       p = high;
 
       if(p!=NULL){
-        if(p->passedticks==quantum2){
-          if(p->priority>0)  p-> priority--;         
-          p-> passedticks =0;
-          continue;
-        }    
+        // if(p->passedticks==quantum2){
+        //   if(p->priority>0)  p-> priority--;         
+        //   p-> passedticks =0;
+        //   continue;
+        // }    
         if(p->level==1){
           c->proc = p;
           switchuvm(p);
@@ -572,6 +584,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  count++;
   //cprintf("sleep : %d\t", p->pid);
 
   sched();
@@ -603,12 +616,12 @@ wakeup1(void *chan)
          //cprintf("min %d\t", min->pid);
       }
       #elif MLFQ_SCHED
-      // if(high!=NULL && p->level==1&&p->priority == high -> priority){
-      //   if(high->pid > p->pid)
-      //     high = p;
-      // }
-      // if(high!=NULL && p->level==1&& p->priority > high ->priority)
-      //   high =p;
+      if(high!=NULL && p->level==1&&p->priority == high -> priority){
+        if(high->pid > p->pid)
+          high = p;
+      }
+      if(high!=NULL && p->level==1&& p->priority > high ->priority)
+        high =p;
       
       #endif
       
@@ -708,15 +721,14 @@ updatetime(void)
   release(&ptable.lock);
 }
 
-int
+void
 setpriority(int pid, int priority)
 {
   struct proc *p;
   acquire(&ptable.lock);
-
+//cprintf("PID");
   if(priority<0 || priority > 11){
     release(&ptable.lock);
-    return -1;
   }
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -724,31 +736,44 @@ setpriority(int pid, int priority)
       p->priority = priority;
     }
   }
-
   release(&ptable.lock);
-  return pid;
+  
 }
 
 int
 getlev(void)
-{
+{ 
   return myproc()->level;
 }
 
-
-int
+void
 monopolize(int password)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
-  c->proc = 0;
-  if(password==2017029552){
+  struct proc *p = myproc();
+  struct spinlock *lk = &ptable.lock;
+  if(lk != &ptable.lock){  //DOC: sleeplock0
+    acquire(&ptable.lock);  //DOC: sleeplock1
+    release(lk);
+  }
 
-    return 0;
+  if(password==2017029552){
+    if(p->mono==0){
+     p->mono =1;
+     
+    }
+    else if(p->mono==1){
+      p->mono=0;
+      p->level =0;
+      p->priority =0;
+      yield();
+    }
   }
   else{
-    p->killed =1;
-    return -1;
+    p->killed =1;  
+  }
+  if(lk != &ptable.lock){  //DOC: sleeplock2
+    release(&ptable.lock);
+    acquire(lk);
   }
 }
 

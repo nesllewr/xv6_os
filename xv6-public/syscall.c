@@ -139,9 +139,9 @@ static int (*syscalls[])(void) = {
 [SYS_myyield]   sys_myyield,
 [SYS_yield]   sys_yield,
 [SYS_alarm]   sys_alarm,
-[SYS_setpriority]    sys_setpriority,
-[SYS_getlev]    sys_getlev,
-[SYS_monopolize]    sys_monopolize,
+[SYS_setpriority]   sys_setpriority,
+[SYS_getlev]   sys_getlev,
+[SYS_monopolize]   sys_monopolize,
 
 };
 

@@ -23,8 +23,8 @@
 #define SYS_myfunction  22
 #define SYS_getppid  23
 #define SYS_myyield  24
-#define SYS_alarm   25
-#define SYS_setpriority   26
-#define SYS_getlev   27
-#define SYS_monopolize   28
-#define SYS_yield   29
+#define SYS_alarm  25
+#define SYS_setpriority  26
+#define SYS_getlev  27
+#define SYS_monopolize  28
+#define SYS_yield  29

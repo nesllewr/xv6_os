@@ -116,7 +116,8 @@ sys_setpriority(void)
     if(argint(1, &n)<0)
         return -1;
     
-    return setpriority(pid, n);
+    setpriority(pid, n);
+    return 0;
 }
 
 int
@@ -131,10 +132,12 @@ sys_monopolize(void){
     if(argint(0, &password)<0)
         return -1;
 
-    return monopolize(password);
+   monopolize(password);
+   return 0;
 }
 
-void
+int
 sys_yield(void){
     yield();
+    return 0;
 }
