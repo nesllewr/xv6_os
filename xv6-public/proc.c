@@ -414,7 +414,7 @@ scheduler(void)
 
         c->proc = 0;
               
-      }           
+      //}           
     }
    
     #elif MLFQ_SCHED
@@ -426,15 +426,8 @@ scheduler(void)
     acquire(&ptable.lock);
     for(p=ptable.proc; p< &ptable.proc[NPROC];p++){
       if(numpro<count) break;
-      
+      if(spent%100==0) break;
       if(p->state !=RUNNABLE||p->level==1) continue;
-      
-      // if(p->level==0 && p->passedticks==quantum1){       
-      //   p->level = 1;
-      //   p->passedticks =0;
-      //   if(p->pid>1) numpro--;
-      //   continue;          
-      // }
       
         c->proc = p;
         switchuvm(p);
@@ -447,19 +440,19 @@ scheduler(void)
     }//level 0 for
     
     //struct proc *high =NULL;
-    struct proc *cur = NULL;
     for(p = ptable.proc; p < &ptable.proc[NPROC];p++){
+      if(spent%100==0) break; 
       if(p->state != RUNNABLE) continue;
 
       high = p;
       
+      struct proc *cur = NULL;
       for(cur= ptable.proc; cur < &ptable.proc[NPROC];cur++){
         if(cur->state!=RUNNABLE) continue;
         if(high==NULL||high->state!=RUNNABLE){
             high = cur;
         }
         if(cur->pid > 1 && cur->level==1){
-          
           if(cur->priority == high->priority && high->state==RUNNABLE){
             if(cur->pid < high->pid){
               high = cur;
@@ -473,13 +466,7 @@ scheduler(void)
      
       p = high;
 
-      if(p!=NULL){
-        // if(p->passedticks==quantum2){
-        //   if(p->priority>0)  p-> priority--;         
-        //   p-> passedticks =0;
-        //   continue;
-        // }    
-        if(p->level==1){
+      if(p!=NULL && p->level==1){
           c->proc = p;
           switchuvm(p);
           p->state = RUNNING;
@@ -487,8 +474,7 @@ scheduler(void)
           swtch(&(c->scheduler), p->context);
           switchkvm();
 
-          c->proc = 0;
-       }         
+          c->proc = 0;         
       }  //if pf null
     }//level 1 sched
     
@@ -584,7 +570,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
-  count++;
+  if(p->level==0) count++;
   //cprintf("sleep : %d\t", p->pid);
 
   sched();
@@ -750,12 +736,6 @@ void
 monopolize(int password)
 {
   struct proc *p = myproc();
-  struct spinlock *lk = &ptable.lock;
-  if(lk != &ptable.lock){  //DOC: sleeplock0
-    acquire(&ptable.lock);  //DOC: sleeplock1
-    release(lk);
-  }
-
   if(password==2017029552){
     if(p->mono==0){
      p->mono =1;
@@ -769,10 +749,6 @@ monopolize(int password)
   }
   else{
     p->killed =1;  
-  }
-  if(lk != &ptable.lock){  //DOC: sleeplock2
-    release(&ptable.lock);
-    acquire(lk);
   }
 }
 

@@ -134,7 +134,7 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->state == RUNNING &&
     tf->trapno == T_IRQ0+IRQ_TIMER){
     #ifdef FCFS_SCHED
-    yield();
+   // yield();
     #elif MLFQ_SCHED
     if(myproc()->level==0 && myproc()->passedticks==quantum1&&myproc()->mono==0){
       myproc()->level =1;
