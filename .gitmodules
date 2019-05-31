@@ -1,0 +1,3 @@
+[submodule "xv6_lwp"]
+	path = xv6_lwp
+	url = https://github.com/nesllewr/xv6_os.git
