@@ -34,16 +34,10 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
-// When thread is cleaned up, its memeory spaces is saved to blankvm of master's
-// so that new thread could use memory space in blankvm, not by growing sz of master
-struct blankvm {
-  uint data[NPROC];
-  int size;
-};
-
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
+  uint usz;
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
@@ -57,16 +51,12 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  int tid;                     // Thread id (0 if this is not slave thread)
-  struct proc *master;         // Master thread of this process
-  void* tmp_retval;            // Temporally saved return-value of thread
-  // uint vabase;                 // Base of virtual address (Base of normal process is 0, but slave thread has special base addr)
-  // struct blankvm blankvm;      // Currently blanks of memory space of "master" thread's (slave do NOT use this)
-                 
-  int isthread, num,all;
-
+  int isthread;               // 0 = mthread, 1 = wthread
+  thread_t tid;                // 0 for mthreads
+  int numthread;           // number of wthread that mthread has / o for wthread
+  struct proc *master;        // mthread : process which called thread_create()
+  void* ret_val;                 // ret_val used in thread_exit(), thread_join()
 };
-
 
 // Process memory is laid out contiguously, low addresses first:
 //   text
