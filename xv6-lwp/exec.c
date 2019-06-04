@@ -13,10 +13,6 @@ extern struct {
     struct proc proc[NPROC];
 } ptable;
 
-// extern int MLFQ_tickets;
-// extern int stride_tickets;
-// extern double MLFQ_stride;
-
 int
 exec(char *path, char **argv)
 {
@@ -29,8 +25,10 @@ exec(char *path, char **argv)
     pde_t *pgdir, *oldpgdir;
     struct proc * curproc = myproc();
     struct proc * p;
+    int oldtid =0;
 
     if(curproc->isthread){
+        oldtid = curproc->tid;
         curproc->tid = 0;
         curproc->isthread = 0;
         curproc->master->isthread = 1;
@@ -126,11 +124,6 @@ exec(char *path, char **argv)
             last = s+1;
     safestrcpy(curproc->name, last, sizeof(curproc->name));
 
-    // If wthread call exec()
-    // -> make it as master
-    // -> make its master as wthread
-   
-
     // For avoiding scheduling
     // If other wthreads scheduled -> freevm will be called several times
     acquire(&ptable.lock);
@@ -144,17 +137,19 @@ exec(char *path, char **argv)
     oldpgdir = curproc->pgdir;
     curproc->pgdir = pgdir;
     curproc->usz = sz;
-    // Allocate 63 more userstacks for wthread
+
     for(int i=0 ; i<NPROC-1 ; i++){
         if((sz=allocuvm(curproc->pgdir, sz, sz+2*PGSIZE)) == 0)
             goto bad;
         clearpteu(curproc->pgdir, (char*)(sz-2*PGSIZE));
     }
     curproc->sz = sz;
-    curproc->tf->eip = elf.entry;  // main
+    curproc->tf->eip = elf.entry; 
     curproc->tf->esp = sp;
     switchuvm(curproc);
-    freevm(oldpgdir);
+
+    if(oldtid==0)
+        freevm(oldpgdir);
     return 0;
 
 bad:

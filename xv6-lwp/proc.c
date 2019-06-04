@@ -247,7 +247,6 @@ exit(void)
     if(curproc == initproc)
         panic("init exiting");
 
-    // Close all open files of master and wthreads
     for(p=ptable.proc ; p<&ptable.proc[NPROC] ; p++){
         if(p->pid == curproc->pid){
             for(fd = 0; fd < NOFILE; fd++){
@@ -302,7 +301,6 @@ wait(void)
     for(;;){
         // Scan through table looking for exited children.
         havekids = 0;
-        // Clean up all zombie(exit or thread_exit made it zombie) wthreads
         for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
             
             if(p->isthread || p->parent!=curproc)
@@ -570,6 +568,7 @@ thread_create(thread_t * thread, void * (* start_routine)(void *), void * arg)
 
     if((np=allocproc()) == 0)
         return -1;
+    --nextpid;
 
     // Duplicate master's ofile, cwd, name
     for(int i=0 ; i<NOFILE ; i++)
@@ -585,10 +584,14 @@ thread_create(thread_t * thread, void * (* start_routine)(void *), void * arg)
     np->pid = curproc->pid;
     np->parent = curproc->parent;
 
-    if(curproc->isthread == 1)
+    if(curproc->isthread == 1){
         np->master = curproc->master;
-    else
+        np->pid = curproc->master->pid;
+    }
+    else{
         np->master = curproc;
+        np->pid = curproc->pid;
+    }
 
     np->master->numthread++;
     *np->tf = *curproc->tf;
@@ -649,7 +652,7 @@ thread_exit(void * ret_val)
     acquire(&ptable.lock);
 
     curproc->ret_val = ret_val;
-    // Wake master to clean wthread's resources
+    // Wake master to clean thread
     wakeup1(curproc->master);
 
     curproc->master->numthread--;
@@ -666,7 +669,7 @@ thread_join(thread_t thread, void ** retval)
     struct proc * curproc = myproc();
 
     if(curproc->isthread)
-        panic("wthread cannot call thread_join()");
+        panic("Thread join error");
 
 
     acquire(&ptable.lock);
@@ -674,7 +677,6 @@ thread_join(thread_t thread, void ** retval)
         for(p=ptable.proc ; p<&ptable.proc[NPROC] ; p++){
             if(!p->isthread || p->tid!=thread)
                 continue;
-
             if(p->state == ZOMBIE){
                 * retval = p->ret_val;
 
@@ -688,6 +690,7 @@ thread_join(thread_t thread, void ** retval)
                 p->isthread = 0;
                 p->tid = 0;
                 p->state = UNUSED;
+                nexttid=1;
 
                 release(&ptable.lock);
                 return 0;

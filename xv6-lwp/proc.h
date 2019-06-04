@@ -51,12 +51,14 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  int isthread;               // 0 = mthread, 1 = wthread
-  thread_t tid;                // 0 for mthreads
-  int numthread;           // number of wthread that mthread has / o for wthread
-  struct proc *master;        // mthread : process which called thread_create()
+  int isthread;               
+  thread_t tid;               //isthread !=0, tid is given 
+  int numthread;           
+  struct proc *master;        // process which called thread_create()
   void* ret_val;                 // ret_val used in thread_exit(), thread_join()
+  
 };
+
 
 // Process memory is laid out contiguously, low addresses first:
 //   text
