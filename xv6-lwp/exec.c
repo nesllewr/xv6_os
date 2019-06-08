@@ -124,8 +124,7 @@ exec(char *path, char **argv)
             last = s+1;
     safestrcpy(curproc->name, last, sizeof(curproc->name));
 
-    // For avoiding scheduling
-    // If other wthreads scheduled -> freevm will be called several times
+    
     acquire(&ptable.lock);
     for(p=ptable.proc ; p<&ptable.proc[NPROC] ; p++){
         if(p->pid==curproc->pid && p->tid!=curproc->tid)
